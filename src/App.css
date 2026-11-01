@@ -1,0 +1,52 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #111318;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+}
+
+.viewer {
+  width: 100%;
+  height: 100%;
+}
+
+.controls {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+
+  display: flex;
+  gap: 10px;
+
+  z-index: 10;
+}
+
+.controls button {
+  padding: 8px 14px;
+
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+
+  background: rgba(20, 22, 28, 0.9);
+  color: white;
+
+  font-size: 14px;
+
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: rgba(40, 43, 52, 0.95);
+}
