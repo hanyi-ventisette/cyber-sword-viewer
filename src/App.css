@@ -8,45 +8,271 @@ body,
 
 body {
   overflow: hidden;
-  background: #111318;
+  background: #f2f2ef;
 }
 
 .app {
-  width: 100vw;
-  height: 100vh;
-}
-
-.viewer {
   width: 100%;
   height: 100%;
 }
 
+.viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+
+/* ======================================================
+   Controls
+   ====================================================== */
+
 .controls {
   position: absolute;
   left: 50%;
-  bottom: 24px;
+  bottom: 18px;
+
   transform: translateX(-50%);
 
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
 
   z-index: 10;
 }
 
-.controls button {
-  padding: 8px 14px;
 
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+/* Icon buttons */
 
-  background: rgba(20, 22, 28, 0.9);
-  color: white;
+.iconButton {
+  width: 38px;
+  height: 38px;
 
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+
+  padding: 0;
+
+  border: 1px solid rgba(20, 20, 20, 0.16);
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.82);
+  color: #222;
 
   cursor: pointer;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
 }
 
-.controls button:hover {
-  background: rgba(40, 43, 52, 0.95);
+.iconButton:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.iconButton:active {
+  transform: scale(0.96);
+}
+
+.iconButton svg {
+  width: 17px;
+  height: 17px;
+
+  fill: currentColor;
+}
+
+
+/* Two-way toggles */
+
+.toggle {
+  position: relative;
+
+  height: 38px;
+  min-width: 128px;
+
+  padding: 0;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+
+  border: 1px solid rgba(20, 20, 20, 0.16);
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.82);
+
+  overflow: hidden;
+  cursor: pointer;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.toggle span {
+  position: relative;
+  z-index: 2;
+
+  padding: 0 12px;
+
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+
+  color: #555;
+
+  transition: color 0.2s ease;
+}
+
+.toggleThumb {
+  position: absolute;
+
+  left: 3px;
+  top: 3px;
+
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+
+  border-radius: 999px;
+
+  background: #222;
+
+  transition:
+    transform 0.22s ease;
+}
+
+.toggle:not(.toggleRight) span:first-child {
+  color: #fff;
+}
+
+.toggleRight span:nth-child(2) {
+  color: #fff;
+}
+
+.toggleRight .toggleThumb {
+  transform: translateX(100%);
+}
+
+
+/* ======================================================
+   Legend
+   ====================================================== */
+
+.legend {
+  position: absolute;
+
+  left: 18px;
+  bottom: 18px;
+
+  width: 156px;
+
+  padding: 9px 10px;
+
+  border: 1px solid rgba(20, 20, 20, 0.1);
+  border-radius: 8px;
+
+  background: rgba(255, 255, 255, 0.72);
+  color: #333;
+
+  font-size: 9px;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  z-index: 10;
+}
+
+.legendHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+
+  margin-bottom: 6px;
+
+  font-size: 8px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+
+  color: #444;
+}
+
+.speedGradient {
+  height: 5px;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #166cff,
+      #43cbd4,
+      #d9d843,
+      #f5a623,
+      #e53935
+    );
+}
+
+.edgeGradient {
+  height: 5px;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #4caf50,
+      #f4d03f,
+      #e53935
+    );
+}
+
+.legendTicks {
+  display: flex;
+  justify-content: space-between;
+
+  margin-top: 4px;
+
+  color: #666;
+}
+
+
+/* ======================================================
+   Responsive
+   ====================================================== */
+
+@media (max-width: 620px) {
+  .controls {
+    bottom: 12px;
+    gap: 5px;
+  }
+
+  .iconButton {
+    width: 34px;
+    height: 34px;
+  }
+
+  .toggle {
+    min-width: 104px;
+    height: 34px;
+  }
+
+  .toggle span {
+    padding: 0 8px;
+    font-size: 9px;
+  }
+
+  .legend {
+    left: 12px;
+    bottom: 56px;
+    width: 140px;
+  }
 }
