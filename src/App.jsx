@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
+import { Line, OrbitControls } from '@react-three/drei'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import './App.css'
@@ -64,14 +64,9 @@ function getBladeWidthDirection(sample) {
         sensorQuaternion
       )
 
-  // Sword model local X = blade width direction
-
   const widthDirection =
     new THREE.Vector3(1, 0, 0)
       .applyQuaternion(worldQuaternion)
-
-  // Keep width direction perpendicular
-  // to the actual root → tip sword axis
 
   const root =
     new THREE.Vector3(...sample.root)
@@ -112,65 +107,47 @@ function Trajectory({
   const startTimeRef = useRef(null)
   const lastTriggerRef = useRef(playTrigger)
 
-  const geometry = useMemo(() => {
-    if (!data) return null
+  const [visibleCount, setVisibleCount] =
+    useState(data.samples.length)
 
+  const trajectoryData = useMemo(() => {
     const center = getMotionCenter(data)
 
-    const positions = []
-    const colors = []
-
-    for (const sample of data.samples) {
-      positions.push(
-        sample.tip[0] - center.x,
-        sample.tip[1] - center.y,
-        sample.tip[2] - center.z
+    const points =
+      data.samples.map(
+        (sample) =>
+          new THREE.Vector3(
+            sample.tip[0] - center.x,
+            sample.tip[1] - center.y,
+            sample.tip[2] - center.z
+          )
       )
 
-      const selectedColor =
-        colorMode === 'speed'
-          ? sample.speedColor
-          : sample.edgeColor
+    const colors =
+      data.samples.map((sample) => {
+        const selectedColor =
+          colorMode === 'speed'
+            ? sample.speedColor
+            : sample.edgeColor
 
-      colors.push(
-        selectedColor[0],
-        selectedColor[1],
-        selectedColor[2]
-      )
+        return new THREE.Color(
+          selectedColor[0],
+          selectedColor[1],
+          selectedColor[2]
+        )
+      })
+
+    return {
+      points,
+      colors
     }
-
-    const geo =
-      new THREE.BufferGeometry()
-
-    geo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(
-        positions,
-        3
-      )
-    )
-
-    geo.setAttribute(
-      'color',
-      new THREE.Float32BufferAttribute(
-        colors,
-        3
-      )
-    )
-
-    geo.setDrawRange(
-      0,
-      data.samples.length
-    )
-
-    return geo
   }, [data, colorMode])
 
+  useEffect(() => {
+    setVisibleCount(data.samples.length)
+  }, [data])
+
   useFrame(({ clock }) => {
-    if (!geometry || !data) return
-
-    // New Play click
-
     if (
       playTrigger !==
       lastTriggerRef.current
@@ -181,7 +158,7 @@ function Trajectory({
       startTimeRef.current =
         clock.elapsedTime
 
-      geometry.setDrawRange(0, 1)
+      setVisibleCount(1)
     }
 
     if (
@@ -194,7 +171,7 @@ function Trajectory({
       clock.elapsedTime -
       startTimeRef.current
 
-    let visibleSamples = 1
+    let nextVisibleCount = 1
 
     for (
       let i = 0;
@@ -204,22 +181,23 @@ function Trajectory({
       if (
         data.samples[i].t <= elapsed
       ) {
-        visibleSamples = i + 1
+        nextVisibleCount = i + 1
       } else {
         break
       }
     }
 
-    geometry.setDrawRange(
-      0,
-      visibleSamples
+    setVisibleCount(
+      (current) =>
+        current === nextVisibleCount
+          ? current
+          : nextVisibleCount
     )
 
     if (
       elapsed >= data.duration
     ) {
-      geometry.setDrawRange(
-        0,
+      setVisibleCount(
         data.samples.length
       )
 
@@ -227,12 +205,26 @@ function Trajectory({
     }
   })
 
-  if (!geometry) return null
+  const points =
+    trajectoryData.points.slice(
+      0,
+      visibleCount
+    )
+
+  const colors =
+    trajectoryData.colors.slice(
+      0,
+      visibleCount
+    )
+
+  if (points.length < 2) return null
 
   return (
-    <line geometry={geometry}>
-      <lineBasicMaterial vertexColors />
-    </line>
+    <Line
+      points={points}
+      vertexColors={colors}
+      lineWidth={2.8}
+    />
   )
 }
 
@@ -250,8 +242,6 @@ function BladePlane({
   const lastTriggerRef = useRef(playTrigger)
 
   const planeData = useMemo(() => {
-    if (!data) return null
-
     const center =
       getMotionCenter(data)
 
@@ -260,8 +250,6 @@ function BladePlane({
 
     const halfWidth =
       bladeWidth / 2
-
-    // Build one blade-face pose per sample
 
     const poses =
       data.samples.map((sample) => {
@@ -342,9 +330,6 @@ function BladePlane({
       )
     }
 
-    // Connect each blade pose to the next pose.
-    // One quad = 2 triangles = 6 vertices.
-
     for (
       let i = 0;
       i < poses.length - 1;
@@ -408,8 +393,6 @@ function BladePlane({
   }, [data, colorMode])
 
   useFrame(({ clock }) => {
-    if (!planeData || !data) return
-
     if (
       playTrigger !==
       lastTriggerRef.current
@@ -472,14 +455,12 @@ function BladePlane({
     }
   })
 
-  if (!planeData) return null
-
   return (
     <mesh geometry={planeData.geometry}>
       <meshBasicMaterial
         vertexColors
         transparent
-        opacity={0.1}
+        opacity={0.22}
         side={THREE.DoubleSide}
         depthWrite={false}
       />
@@ -497,7 +478,8 @@ function Scene({
   colorMode,
   displayMode,
   controlsRef,
-  playTrigger
+  playTrigger,
+  interactionEnabled
 }) {
   return (
     <>
@@ -527,6 +509,7 @@ function Scene({
       <OrbitControls
         ref={controlsRef}
         target={[0, 0, 0]}
+        enabled={interactionEnabled}
       />
     </>
   )
@@ -646,9 +629,12 @@ function App() {
   const [playTrigger, setPlayTrigger] =
     useState(0)
 
-  const controlsRef = useRef()
+  const [
+    interactionEnabled,
+    setInteractionEnabled
+  ] = useState(false)
 
-  // Load JSON
+  const controlsRef = useRef()
 
   useEffect(() => {
     fetch('/data/test_motion_1.json')
@@ -657,11 +643,6 @@ function App() {
           response.json()
       )
       .then((json) => {
-        console.log(
-          'Motion data loaded:',
-          json
-        )
-
         setData(json)
       })
       .catch((error) => {
@@ -693,8 +674,25 @@ function App() {
             displayMode={displayMode}
             controlsRef={controlsRef}
             playTrigger={playTrigger}
+            interactionEnabled={
+              interactionEnabled
+            }
           />
         </Canvas>
+
+        {!interactionEnabled && (
+          <button
+            className="interactionGate"
+            onClick={() =>
+              setInteractionEnabled(true)
+            }
+            aria-label="Enable 3D interaction"
+          >
+            <span>
+              Click to interact
+            </span>
+          </button>
+        )}
 
         <Legend
           data={data}
