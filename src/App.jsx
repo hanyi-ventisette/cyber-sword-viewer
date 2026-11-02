@@ -125,10 +125,29 @@ function Trajectory({
 
     const colors =
       data.samples.map((sample) => {
-        const selectedColor =
+        const baseColor =
           colorMode === 'speed'
             ? sample.speedColor
             : sample.edgeColor
+
+        const planeColor =
+          new THREE.Color(
+            baseColor[0],
+            baseColor[1],
+            baseColor[2]
+          )
+
+        planeColor.offsetHSL(
+          0,
+          0.12,
+          -0.08
+        )
+
+        const selectedColor = [
+          planeColor.r,
+          planeColor.g,
+          planeColor.b
+        ]
 
         return new THREE.Color(
           selectedColor[0],
@@ -438,7 +457,7 @@ function BladePlane({
     planeData.geometry.setDrawRange(
       0,
       visibleIntervals *
-        planeData.verticesPerInterval
+      planeData.verticesPerInterval
     )
 
     if (
@@ -460,7 +479,7 @@ function BladePlane({
       <meshBasicMaterial
         vertexColors
         transparent
-        opacity={0.22}
+        opacity={0.32}
         side={THREE.DoubleSide}
         depthWrite={false}
       />
@@ -714,11 +733,10 @@ function App() {
           </button>
 
           <button
-            className={`toggle ${
-              colorMode === 'edge'
+            className={`toggle ${colorMode === 'edge'
                 ? 'toggleRight'
                 : ''
-            }`}
+              }`}
             onClick={() =>
               setColorMode(
                 (prev) =>
@@ -735,11 +753,10 @@ function App() {
           </button>
 
           <button
-            className={`toggle ${
-              displayMode === 'plane'
+            className={`toggle ${displayMode === 'plane'
                 ? 'toggleRight'
                 : ''
-            }`}
+              }`}
             onClick={() =>
               setDisplayMode(
                 (prev) =>
