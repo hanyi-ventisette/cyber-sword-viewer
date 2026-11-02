@@ -1,4 +1,8 @@
-import { Canvas, useFrame } from '@react-three/fiber'
+import {
+  Canvas,
+  useFrame,
+  useThree
+} from '@react-three/fiber'
 import { Line, OrbitControls } from '@react-three/drei'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -487,6 +491,98 @@ function BladePlane({
   )
 }
 
+function ScaleTracker({ onScaleChange }) {
+  const { camera, size } = useThree()
+
+  const previousLabel = useRef(null)
+  const previousWidth = useRef(null)
+
+  useFrame(() => {
+    if (!camera || !size.height) return
+
+    const target =
+      new THREE.Vector3(0, 0, 0)
+
+    const distance =
+      camera.position.distanceTo(target)
+
+    const fovRadians =
+      THREE.MathUtils.degToRad(
+        camera.fov
+      )
+
+    const visibleHeight =
+      2 *
+      distance *
+      Math.tan(fovRadians / 2)
+
+    const metersPerPixel =
+      visibleHeight / size.height
+
+
+    // Aim for roughly 90 px long
+
+    const targetMeters =
+      metersPerPixel * 90
+
+
+    const niceValues = [
+      0.05,
+      0.1,
+      0.2,
+      0.5,
+      1,
+      2,
+      5,
+      10
+    ]
+
+
+    let chosen =
+      niceValues[
+      niceValues.length - 1
+      ]
+
+
+    for (const value of niceValues) {
+      if (value >= targetMeters) {
+        chosen = value
+        break
+      }
+    }
+
+
+    const width =
+      chosen / metersPerPixel
+
+
+    const label =
+      chosen < 1
+        ? `${Math.round(
+          chosen * 100
+        )} cm`
+        : `${chosen} m`
+
+
+    if (
+      label !== previousLabel.current ||
+      Math.abs(
+        width -
+        (previousWidth.current ?? 0)
+      ) > 1
+    ) {
+      previousLabel.current = label
+      previousWidth.current = width
+
+      onScaleChange({
+        label,
+        width
+      })
+    }
+  })
+
+  return null
+}
 
 // ======================================================
 // SCENE
@@ -498,7 +594,8 @@ function Scene({
   displayMode,
   controlsRef,
   playTrigger,
-  interactionEnabled
+  interactionEnabled,
+  onScaleChange
 }) {
   return (
     <>
@@ -529,6 +626,10 @@ function Scene({
         ref={controlsRef}
         target={[0, 0, 0]}
         enabled={interactionEnabled}
+      />
+
+      <ScaleTracker
+        onScaleChange={onScaleChange}
       />
     </>
   )
@@ -653,6 +754,12 @@ function App() {
     setInteractionEnabled
   ] = useState(false)
 
+  const [scaleInfo, setScaleInfo] =
+    useState({
+      label: '1 m',
+      width: 90
+    })
+
   const controlsRef = useRef()
 
   useEffect(() => {
@@ -696,6 +803,7 @@ function App() {
             interactionEnabled={
               interactionEnabled
             }
+            onScaleChange={setScaleInfo}
           />
         </Canvas>
 
@@ -718,6 +826,24 @@ function App() {
           colorMode={colorMode}
         />
 
+        <div className="scaleBar">
+
+          <span className="scaleLabel">
+            {scaleInfo.label}
+          </span>
+
+          <div
+            className="scaleLine"
+            style={{
+              width: `${scaleInfo.width}px`
+            }}
+          >
+            <span />
+            <span />
+          </div>
+
+        </div>
+
         <div className="controls">
           <button
             className="iconButton"
@@ -734,8 +860,8 @@ function App() {
 
           <button
             className={`toggle ${colorMode === 'edge'
-                ? 'toggleRight'
-                : ''
+              ? 'toggleRight'
+              : ''
               }`}
             onClick={() =>
               setColorMode(
@@ -754,8 +880,8 @@ function App() {
 
           <button
             className={`toggle ${displayMode === 'plane'
-                ? 'toggleRight'
-                : ''
+              ? 'toggleRight'
+              : ''
               }`}
             onClick={() =>
               setDisplayMode(
