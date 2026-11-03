@@ -654,6 +654,121 @@ function Legend({
   )
 }
 
+function StaticTrajectoryCover({
+  data,
+  onActivate
+}) {
+  const preview = useMemo(() => {
+    if (!data?.samples?.length) {
+      return null
+    }
+
+    const width = 1000
+    const height = 667
+
+    const center =
+      getMotionCenter(data)
+
+    // Match the 3D viewer's default camera
+    const camera =
+      new THREE.PerspectiveCamera(
+        40,
+        width / height,
+        0.01,
+        100
+      )
+
+    camera.position.set(
+      2.4,
+      1.6,
+      3.2
+    )
+
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+
+    const projected =
+      data.samples.map((sample) => {
+        const point =
+          new THREE.Vector3(
+            sample.tip[0] - center.x,
+            sample.tip[1] - center.y,
+            sample.tip[2] - center.z
+          )
+
+        point.project(camera)
+
+        return {
+          x:
+            (point.x * 0.5 + 0.5) *
+            width,
+
+          y:
+            (-point.y * 0.5 + 0.5) *
+            height,
+
+          color:
+            sample.speedColor
+        }
+      })
+
+    return {
+      width,
+      height,
+      projected
+    }
+  }, [data])
+
+  if (!preview) {
+    return null
+  }
+
+  return (
+    <button
+      className="staticCover"
+      onClick={onActivate}
+      aria-label="Open interactive 3D motion viewer"
+    >
+      <svg
+        viewBox={`0 0 ${preview.width} ${preview.height}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {preview.projected
+          .slice(0, -1)
+          .map((point, i) => {
+            const next =
+              preview.projected[i + 1]
+
+            const [r, g, b] =
+              point.color
+
+            const color =
+              `rgb(${Math.round(r * 255)},` +
+              `${Math.round(g * 255)},` +
+              `${Math.round(b * 255)})`
+
+            return (
+              <line
+                key={i}
+                x1={point.x}
+                y1={point.y}
+                x2={next.x}
+                y2={next.y}
+                stroke={color}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+            )
+          })}
+      </svg>
+
+      <span className="staticCoverHint">
+        Explore 3D
+      </span>
+    </button>
+  )
+}
 
 // ======================================================
 // APP
@@ -686,6 +801,43 @@ function App() {
     viewerActivated,
     setViewerActivated
   ] = useState(false)
+
+  const viewerIdRef = useRef(
+    `viewer-${Math.random().toString(36).slice(2)}`
+  )
+
+  const channelRef = useRef(null)
+
+  useEffect(() => {
+    const channel =
+      new BroadcastChannel(
+        'cyber-sword-viewer-active'
+      )
+
+    channelRef.current = channel
+
+    channel.onmessage = (event) => {
+      const {
+        type,
+        viewerId
+      } = event.data || {}
+
+      if (
+        type === 'ACTIVATE_VIEWER' &&
+        viewerId !== viewerIdRef.current
+      ) {
+        // Stop playback
+        setIsPlaying(false)
+
+        // Close WebGL viewer
+        setViewerActivated(false)
+      }
+    }
+
+    return () => {
+      channel.close()
+    }
+  }, [])
 
   const [scaleInfo, setScaleInfo] =
     useState({
@@ -824,11 +976,19 @@ function App() {
     setIsPlaying(true)
   }
 
+  function activateViewer() {
+    setViewerActivated(true)
+
+    channelRef.current?.postMessage({
+      type: 'ACTIVATE_VIEWER',
+      viewerId: viewerIdRef.current
+    })
+  }
+
   return (
     <div className="app">
       <div className="viewer">
         {viewerActivated ? (
-
           <Canvas
             camera={{
               position: [2.4, 1.6, 3.2],
@@ -844,21 +1004,11 @@ function App() {
               onScaleChange={setScaleInfo}
             />
           </Canvas>
-
         ) : (
-
-          <button
-            className="interactionGate"
-            onClick={() =>
-              setViewerActivated(true)
-            }
-            aria-label="Load interactive 3D viewer"
-          >
-            <span>
-              Click to load 3D
-            </span>
-          </button>
-
+          <StaticTrajectoryCover
+            data={data}
+            onActivate={activateViewer}
+          />
         )}
 
         <Legend
@@ -908,69 +1058,70 @@ function App() {
             />
           </div>
         )}
-        <div className="controls">
-          <button
-            className="iconButton"
-            onClick={playMotion}
-            title="Replay motion"
-            aria-label="Replay motion"
-          >
-            <PlayIcon />
-          </button>
+        {viewerActivated && (
+          <div className="controls">
+            <button
+              className="iconButton"
+              onClick={playMotion}
+              title="Replay motion"
+              aria-label="Replay motion"
+            >
+              <PlayIcon />
+            </button>
 
-          <button
-            className={`toggle ${colorMode === 'edge'
-              ? 'toggleRight'
-              : ''
-              }`}
-            onClick={() =>
-              setColorMode(
-                (prev) =>
-                  prev === 'speed'
-                    ? 'edge'
-                    : 'speed'
-              )
-            }
-            aria-label="Switch between speed and edge alignment coloring"
-          >
-            <span>Speed</span>
-            <span>Edge</span>
-            <div className="toggleThumb" />
-          </button>
+            <button
+              className={`toggle ${colorMode === 'edge'
+                  ? 'toggleRight'
+                  : ''
+                }`}
+              onClick={() =>
+                setColorMode(
+                  (prev) =>
+                    prev === 'speed'
+                      ? 'edge'
+                      : 'speed'
+                )
+              }
+              aria-label="Switch between speed and edge alignment coloring"
+            >
+              <span>Speed</span>
+              <span>Edge</span>
+              <div className="toggleThumb" />
+            </button>
 
-          <button
-            className={`toggle ${displayMode === 'plane'
-              ? 'toggleRight'
-              : ''
-              }`}
-            onClick={() =>
-              setDisplayMode(
-                (prev) =>
-                  prev === 'path'
-                    ? 'plane'
-                    : 'path'
-              )
-            }
-            aria-label="Switch between path and blade plane"
-          >
-            <span>Path</span>
-            <span>Plane</span>
-            <div className="toggleThumb" />
-          </button>
+            <button
+              className={`toggle ${displayMode === 'plane'
+                  ? 'toggleRight'
+                  : ''
+                }`}
+              onClick={() =>
+                setDisplayMode(
+                  (prev) =>
+                    prev === 'path'
+                      ? 'plane'
+                      : 'path'
+                )
+              }
+              aria-label="Switch between path and blade plane"
+            >
+              <span>Path</span>
+              <span>Plane</span>
+              <div className="toggleThumb" />
+            </button>
 
-          <button
-            className="iconButton"
-            onClick={resetView}
-            title="Reset view"
-            aria-label="Reset view"
-          >
-            <ResetIcon />
-          </button>
-        </div>
+            <button
+              className="iconButton"
+              onClick={resetView}
+              title="Reset view"
+              aria-label="Reset view"
+            >
+              <ResetIcon />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
 }
-
 
 export default App
