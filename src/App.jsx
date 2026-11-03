@@ -42,6 +42,58 @@ function getMotionCenter(data) {
 // Z = 0°
 // ------------------------------------------------------
 
+function getSwordQuaternion(sample) {
+  // JSON stores quaternion as:
+  // [w, x, y, z]
+  //
+  // Three.js expects:
+  // (x, y, z, w)
+
+  const sensorQuaternion =
+    new THREE.Quaternion(
+      sample.q[1],
+      sample.q[2],
+      sample.q[3],
+      sample.q[0]
+    ).normalize()
+
+  // Exact same correction as TD:
+  //
+  // Geometry COMP
+  // Pre-Xform:
+  // Rotate X = 90
+  // Rotate Y = 180
+  // Rotate Z = 0
+
+  const preRotation =
+    new THREE.Quaternion()
+      .setFromEuler(
+        new THREE.Euler(
+          THREE.MathUtils.degToRad(90),
+          THREE.MathUtils.degToRad(180),
+          THREE.MathUtils.degToRad(0),
+          'XYZ'
+        )
+      )
+
+  // TD transform chain:
+  //
+  // local point
+  // -> BNO rotation
+  // -> Pre-Xform
+  //
+  // therefore:
+  // worldQ = preQ * sensorQ
+
+  return new THREE.Quaternion()
+    .multiplyQuaternions(
+      preRotation,
+      sensorQuaternion
+    )
+    .normalize()
+}
+
+
 function getBladeWidthDirection(sample) {
   const sensorQuaternion =
     new THREE.Quaternion(
@@ -68,34 +120,32 @@ function getBladeWidthDirection(sample) {
         sensorQuaternion
       )
 
-  const widthDirection =
+  // TEST AXIS:
+  // X = (1, 0, 0)
+  const localBladeAxis =
     new THREE.Vector3(1, 0, 0)
-      .applyQuaternion(worldQuaternion)
 
-  const root =
-    new THREE.Vector3(...sample.root)
+  return localBladeAxis
+    .applyQuaternion(worldQuaternion)
+    .normalize()
+}
 
-  const tip =
-    new THREE.Vector3(...sample.tip)
 
-  const swordAxis =
-    tip.clone()
-      .sub(root)
-      .normalize()
+function getBladeNormalDirection(sample) {
+  const swordQuaternion =
+    getSwordQuaternion(sample)
 
-  widthDirection.sub(
-    swordAxis
-      .clone()
-      .multiplyScalar(
-        widthDirection.dot(swordAxis)
-      )
+  // Local Z = blade normal
+
+  return new THREE.Vector3(
+    0,
+    0,
+    1
   )
-
-  if (widthDirection.lengthSq() > 0.000001) {
-    widthDirection.normalize()
-  }
-
-  return widthDirection
+    .applyQuaternion(
+      swordQuaternion
+    )
+    .normalize()
 }
 
 
@@ -106,59 +156,34 @@ function getBladeWidthDirection(sample) {
 function Trajectory({
   data,
   colorMode,
-  playTrigger
+  playbackTime
 }) {
-  const startTimeRef = useRef(null)
-  const lastTriggerRef = useRef(playTrigger)
-
-  const [visibleCount, setVisibleCount] =
-    useState(data.samples.length)
-
   const trajectoryData = useMemo(() => {
     const center = getMotionCenter(data)
 
-    const points =
-      data.samples.map(
-        (sample) =>
-          new THREE.Vector3(
-            sample.tip[0] - center.x,
-            sample.tip[1] - center.y,
-            sample.tip[2] - center.z
-          )
-      )
+    const points = data.samples.map(
+      (sample) =>
+        new THREE.Vector3(
+          sample.tip[0] - center.x,
+          sample.tip[1] - center.y,
+          sample.tip[2] - center.z
+        )
+    )
 
-    const colors =
-      data.samples.map((sample) => {
+    const colors = data.samples.map(
+      (sample) => {
         const baseColor =
           colorMode === 'speed'
             ? sample.speedColor
             : sample.edgeColor
 
-        const planeColor =
-          new THREE.Color(
-            baseColor[0],
-            baseColor[1],
-            baseColor[2]
-          )
-
-        planeColor.offsetHSL(
-          0,
-          0.12,
-          -0.08
-        )
-
-        const selectedColor = [
-          planeColor.r,
-          planeColor.g,
-          planeColor.b
-        ]
-
         return new THREE.Color(
-          selectedColor[0],
-          selectedColor[1],
-          selectedColor[2]
+          baseColor[0],
+          baseColor[1],
+          baseColor[2]
         )
-      })
+      }
+    )
 
     return {
       points,
@@ -166,67 +191,21 @@ function Trajectory({
     }
   }, [data, colorMode])
 
-  useEffect(() => {
-    setVisibleCount(data.samples.length)
-  }, [data])
+  let visibleCount = 1
 
-  useFrame(({ clock }) => {
+  for (
+    let i = 0;
+    i < data.samples.length;
+    i++
+  ) {
     if (
-      playTrigger !==
-      lastTriggerRef.current
+      data.samples[i].t <= playbackTime
     ) {
-      lastTriggerRef.current =
-        playTrigger
-
-      startTimeRef.current =
-        clock.elapsedTime
-
-      setVisibleCount(1)
+      visibleCount = i + 1
+    } else {
+      break
     }
-
-    if (
-      startTimeRef.current === null
-    ) {
-      return
-    }
-
-    const elapsed =
-      clock.elapsedTime -
-      startTimeRef.current
-
-    let nextVisibleCount = 1
-
-    for (
-      let i = 0;
-      i < data.samples.length;
-      i++
-    ) {
-      if (
-        data.samples[i].t <= elapsed
-      ) {
-        nextVisibleCount = i + 1
-      } else {
-        break
-      }
-    }
-
-    setVisibleCount(
-      (current) =>
-        current === nextVisibleCount
-          ? current
-          : nextVisibleCount
-    )
-
-    if (
-      elapsed >= data.duration
-    ) {
-      setVisibleCount(
-        data.samples.length
-      )
-
-      startTimeRef.current = null
-    }
-  })
+  }
 
   const points =
     trajectoryData.points.slice(
@@ -246,11 +225,10 @@ function Trajectory({
     <Line
       points={points}
       vertexColors={colors}
-      lineWidth={2.8}
+      lineWidth={3.2}
     />
   )
 }
-
 
 // ======================================================
 // SWEPT BLADE PLANE
@@ -259,23 +237,13 @@ function Trajectory({
 function BladePlane({
   data,
   colorMode,
-  playTrigger
+  playbackTime
 }) {
-  const startTimeRef = useRef(null)
-  const lastTriggerRef = useRef(playTrigger)
-
   const planeData = useMemo(() => {
-    const center =
-      getMotionCenter(data)
+    const center = getMotionCenter(data)
 
-    const bladeWidth =
-      data.sword?.bladeWidth ?? 0.05
-
-    const halfWidth =
-      bladeWidth / 2
-
-    const poses =
-      data.samples.map((sample) => {
+    const poses = data.samples.map(
+      (sample) => {
         const root =
           new THREE.Vector3(
             sample.root[0] - center.x,
@@ -290,22 +258,12 @@ function BladePlane({
             sample.tip[2] - center.z
           )
 
-        const widthDirection =
-          getBladeWidthDirection(sample)
-
-        const offset =
-          widthDirection
-            .clone()
-            .multiplyScalar(halfWidth)
-
         return {
-          rootLeft:
-            root.clone().add(offset),
-
-          tipLeft:
-            tip.clone().add(offset)
+          root,
+          tip
         }
-      })
+      }
+    )
 
     const positions = []
     const colors = []
@@ -358,11 +316,8 @@ function BladePlane({
       i < poses.length - 1;
       i++
     ) {
-      const current =
-        poses[i]
-
-      const next =
-        poses[i + 1]
+      const current = poses[i]
+      const next = poses[i + 1]
 
       const sample =
         data.samples[i]
@@ -372,19 +327,26 @@ function BladePlane({
           ? sample.speedColor
           : sample.edgeColor
 
+      // Swept surface of the actual measured
+      // blade longitudinal segment.
+      //
+      // current root ---- current tip
+      //      |                 |
+      // next root ------- next tip
+
       addQuad(
-        current.rootLeft,
-        current.tipLeft,
-        next.tipLeft,
-        next.rootLeft,
+        current.root,
+        current.tip,
+        next.tip,
+        next.root,
         selectedColor
       )
     }
 
-    const geo =
+    const geometry =
       new THREE.BufferGeometry()
 
-    geo.setAttribute(
+    geometry.setAttribute(
       'position',
       new THREE.Float32BufferAttribute(
         positions,
@@ -392,7 +354,7 @@ function BladePlane({
       )
     )
 
-    geo.setAttribute(
+    geometry.setAttribute(
       'color',
       new THREE.Float32BufferAttribute(
         colors,
@@ -400,48 +362,15 @@ function BladePlane({
       )
     )
 
-    geo.computeVertexNormals()
-
-    const verticesPerInterval = 6
-
-    geo.setDrawRange(
-      0,
-      positions.length / 3
-    )
+    geometry.computeVertexNormals()
 
     return {
-      geometry: geo,
-      verticesPerInterval
+      geometry,
+      verticesPerInterval: 6
     }
   }, [data, colorMode])
 
-  useFrame(({ clock }) => {
-    if (
-      playTrigger !==
-      lastTriggerRef.current
-    ) {
-      lastTriggerRef.current =
-        playTrigger
-
-      startTimeRef.current =
-        clock.elapsedTime
-
-      planeData.geometry.setDrawRange(
-        0,
-        0
-      )
-    }
-
-    if (
-      startTimeRef.current === null
-    ) {
-      return
-    }
-
-    const elapsed =
-      clock.elapsedTime -
-      startTimeRef.current
-
+  useEffect(() => {
     let visibleIntervals = 0
 
     for (
@@ -450,7 +379,8 @@ function BladePlane({
       i++
     ) {
       if (
-        data.samples[i].t <= elapsed
+        data.samples[i].t <=
+        playbackTime
       ) {
         visibleIntervals = i
       } else {
@@ -463,27 +393,18 @@ function BladePlane({
       visibleIntervals *
       planeData.verticesPerInterval
     )
-
-    if (
-      elapsed >= data.duration
-    ) {
-      planeData.geometry.setDrawRange(
-        0,
-        planeData.geometry
-          .getAttribute('position')
-          .count
-      )
-
-      startTimeRef.current = null
-    }
-  })
+  }, [
+    playbackTime,
+    data,
+    planeData
+  ])
 
   return (
     <mesh geometry={planeData.geometry}>
       <meshBasicMaterial
         vertexColors
         transparent
-        opacity={0.32}
+        opacity={0.24}
         side={THREE.DoubleSide}
         depthWrite={false}
       />
@@ -593,8 +514,7 @@ function Scene({
   colorMode,
   displayMode,
   controlsRef,
-  playTrigger,
-  interactionEnabled,
+  playbackTime,
   onScaleChange
 }) {
   return (
@@ -609,7 +529,9 @@ function Scene({
           <Trajectory
             data={data}
             colorMode={colorMode}
-            playTrigger={playTrigger}
+            playbackTime={
+              playbackTime
+            }
           />
         )}
 
@@ -618,14 +540,15 @@ function Scene({
           <BladePlane
             data={data}
             colorMode={colorMode}
-            playTrigger={playTrigger}
+            playbackTime={
+              playbackTime
+            }
           />
         )}
 
       <OrbitControls
         ref={controlsRef}
         target={[0, 0, 0]}
-        enabled={interactionEnabled}
       />
 
       <ScaleTracker
@@ -746,12 +669,22 @@ function App() {
   const [displayMode, setDisplayMode] =
     useState('path')
 
-  const [playTrigger, setPlayTrigger] =
-    useState(0)
+  const [
+    playbackTime,
+    setPlaybackTime
+  ] = useState(0)
 
   const [
-    interactionEnabled,
-    setInteractionEnabled
+    isPlaying,
+    setIsPlaying
+  ] = useState(false)
+
+  const playbackTimeRef =
+    useRef(0)
+
+  const [
+    viewerActivated,
+    setViewerActivated
   ] = useState(false)
 
   const [scaleInfo, setScaleInfo] =
@@ -762,22 +695,114 @@ function App() {
 
   const controlsRef = useRef()
 
+  const motionFiles = {
+    right_fendente:
+      '/data/test_motion_01.json',
+
+    left_midcut_thrust:
+      '/data/test_motion_04.json',
+
+    parry_two_zwerch:
+      '/data/test_motion_05.json',
+
+    scheitelhau_thrust:
+      '/data/test_motion_06.json',
+
+    left_fendente:
+      '/data/test_motion_07.json'
+  }
+
   useEffect(() => {
-    fetch('/data/test_motion_1.json')
-      .then(
-        (response) =>
-          response.json()
+
+    const params =
+      new URLSearchParams(
+        window.location.search
       )
-      .then((json) => {
-        setData(json)
+
+    const motion =
+      params.get('motion')
+      || 'right_fendente'
+
+    const dataUrl =
+      motionFiles[motion]
+      || motionFiles.right_fendente
+
+    fetch(dataUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(
+            `HTTP ${response.status}`
+          )
+        }
+
+        return response.json()
       })
-      .catch((error) => {
+      .then(json => {
+        console.log(
+          'Loaded motion:',
+          motion,
+          json
+        )
+
+        setData(json)
+
+        playbackTimeRef.current =
+          json.duration
+
+        setPlaybackTime(
+          json.duration
+        )
+      })
+      .catch(error => {
         console.error(
           'Failed to load motion data:',
           error
         )
       })
+
   }, [])
+
+  useEffect(() => {
+    if (!isPlaying || !data) {
+      return
+    }
+
+    let animationFrame
+
+    let previousTime =
+      performance.now()
+
+    function animate(now) {
+      const delta =
+        (now - previousTime) / 1000
+
+      previousTime = now
+
+      const next =
+        Math.min(
+          playbackTimeRef.current + delta,
+          data.duration
+        )
+
+      playbackTimeRef.current = next
+      setPlaybackTime(next)
+
+      if (next >= data.duration) {
+        setIsPlaying(false)
+        return
+      }
+
+      animationFrame =
+        requestAnimationFrame(animate)
+    }
+
+    animationFrame =
+      requestAnimationFrame(animate)
+
+    return () => {
+      cancelAnimationFrame(animationFrame)
+    }
+  }, [isPlaying, data])
 
   function resetView() {
     if (!controlsRef.current) return
@@ -785,40 +810,55 @@ function App() {
     controlsRef.current.reset()
   }
 
+  function playMotion() {
+    if (!data) return
+
+    if (
+      playbackTimeRef.current >=
+      data.duration - 0.001
+    ) {
+      playbackTimeRef.current = 0
+      setPlaybackTime(0)
+    }
+
+    setIsPlaying(true)
+  }
+
   return (
     <div className="app">
       <div className="viewer">
-        <Canvas
-          camera={{
-            position: [2.4, 1.6, 3.2],
-            fov: 40
-          }}
-        >
-          <Scene
-            data={data}
-            colorMode={colorMode}
-            displayMode={displayMode}
-            controlsRef={controlsRef}
-            playTrigger={playTrigger}
-            interactionEnabled={
-              interactionEnabled
-            }
-            onScaleChange={setScaleInfo}
-          />
-        </Canvas>
+        {viewerActivated ? (
 
-        {!interactionEnabled && (
+          <Canvas
+            camera={{
+              position: [2.4, 1.6, 3.2],
+              fov: 40
+            }}
+          >
+            <Scene
+              data={data}
+              colorMode={colorMode}
+              displayMode={displayMode}
+              controlsRef={controlsRef}
+              playbackTime={playbackTime}
+              onScaleChange={setScaleInfo}
+            />
+          </Canvas>
+
+        ) : (
+
           <button
             className="interactionGate"
             onClick={() =>
-              setInteractionEnabled(true)
+              setViewerActivated(true)
             }
-            aria-label="Enable 3D interaction"
+            aria-label="Load interactive 3D viewer"
           >
             <span>
-              Click to interact
+              Click to load 3D
             </span>
           </button>
+
         )}
 
         <Legend
@@ -843,15 +883,35 @@ function App() {
           </div>
 
         </div>
+        {data && viewerActivated && (
+          <div className="playbackSlider">
+            <input
+              type="range"
+              min="0"
+              max={data.duration}
+              step="0.001"
+              value={playbackTime}
+              onChange={(event) => {
+                const value =
+                  Number(
+                    event.target.value
+                  )
 
+                setIsPlaying(false)
+
+                playbackTimeRef.current =
+                  value
+
+                setPlaybackTime(value)
+              }}
+              aria-label="Motion playback position"
+            />
+          </div>
+        )}
         <div className="controls">
           <button
             className="iconButton"
-            onClick={() =>
-              setPlayTrigger(
-                (value) => value + 1
-              )
-            }
+            onClick={playMotion}
             title="Replay motion"
             aria-label="Replay motion"
           >
