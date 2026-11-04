@@ -814,26 +814,50 @@ function StaticTrajectoryCover({
     camera.updateProjectionMatrix()
     camera.updateMatrixWorld()
 
+    const projectPoint = (coords) => {
+      if (
+        !coords ||
+        !Array.isArray(coords) ||
+        coords.length < 3
+      ) {
+        return null
+      }
+
+      const point =
+        new THREE.Vector3(
+          coords[0] - center.x,
+          coords[1] - center.y,
+          coords[2] - center.z
+        )
+
+      point.project(camera)
+
+      return {
+        x:
+          (point.x * 0.5 + 0.5) *
+          width,
+
+        y:
+          (-point.y * 0.5 + 0.5) *
+          height
+      }
+    }
+
     const projected =
       data.samples.map((sample) => {
-        const point =
-          new THREE.Vector3(
-            sample.tip[0] - center.x,
-            sample.tip[1] - center.y,
-            sample.tip[2] - center.z
-          )
+        const tip =
+          projectPoint(sample.tip)
 
-        point.project(camera)
+        const rightHand =
+          projectPoint(sample.root)
+
+        const leftHand =
+          projectPoint(sample.handL)
 
         return {
-          x:
-            (point.x * 0.5 + 0.5) *
-            width,
-
-          y:
-            (-point.y * 0.5 + 0.5) *
-            height,
-
+          tip,
+          rightHand,
+          leftHand,
           color:
             sample.speedColor
         }
@@ -860,11 +884,79 @@ function StaticTrajectoryCover({
         viewBox={`0 0 ${preview.width} ${preview.height}`}
         preserveAspectRatio="xMidYMid meet"
       >
+        {/* LEFT HAND */}
         {preview.projected
           .slice(0, -1)
           .map((point, i) => {
             const next =
               preview.projected[i + 1]
+
+            if (
+              !point.leftHand ||
+              !next.leftHand
+            ) {
+              return null
+            }
+
+            return (
+              <line
+                key={`left-${i}`}
+                x1={point.leftHand.x}
+                y1={point.leftHand.y}
+                x2={next.leftHand.x}
+                y2={next.leftHand.y}
+                stroke="#9a9187"
+                strokeOpacity={0.25}
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
+
+        {/* RIGHT HAND */}
+        {preview.projected
+          .slice(0, -1)
+          .map((point, i) => {
+            const next =
+              preview.projected[i + 1]
+
+            if (
+              !point.rightHand ||
+              !next.rightHand
+            ) {
+              return null
+            }
+
+            return (
+              <line
+                key={`right-${i}`}
+                x1={point.rightHand.x}
+                y1={point.rightHand.y}
+                x2={next.rightHand.x}
+                y2={next.rightHand.y}
+                stroke="#6f747a"
+                strokeOpacity={0.4}
+                strokeWidth={2.1}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
+
+        {/* SWORD TIP */}
+        {preview.projected
+          .slice(0, -1)
+          .map((point, i) => {
+            const next =
+              preview.projected[i + 1]
+
+            if (
+              !point.tip ||
+              !next.tip
+            ) {
+              return null
+            }
 
             const [r, g, b] =
               point.color
@@ -876,11 +968,11 @@ function StaticTrajectoryCover({
 
             return (
               <line
-                key={i}
-                x1={point.x}
-                y1={point.y}
-                x2={next.x}
-                y2={next.y}
+                key={`tip-${i}`}
+                x1={point.tip.x}
+                y1={point.tip.y}
+                x2={next.tip.x}
+                y2={next.tip.y}
                 stroke={color}
                 strokeWidth={5.5}
                 strokeLinecap="round"
