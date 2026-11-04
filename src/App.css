@@ -449,3 +449,28 @@ body {
 .staticCoverHint {
   opacity: 1;
 }
+
+.legendHandPaths {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legendHandRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 8px;
+  line-height: 1.2;
+  color: #555;
+}
+
+.legendHandSwatch {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}

@@ -231,6 +231,64 @@ function Trajectory({
 }
 
 // ======================================================
+// RIGHT HAND PATH
+// ======================================================
+
+function HandTrajectory({
+  data,
+  playbackTime,
+  accessor,
+  color,
+  opacity = 0.4,
+  lineWidth = 1.5
+}) {
+  const points = useMemo(() => {
+    const center = getMotionCenter(data)
+
+    return data.samples
+      .map((sample) => {
+        const p = sample[accessor]
+
+        if (
+          !p ||
+          !Array.isArray(p) ||
+          p.length < 3
+        ) {
+          return null
+        }
+
+        return {
+          t: sample.t,
+          point: new THREE.Vector3(
+            p[0] - center.x,
+            p[1] - center.y,
+            p[2] - center.z
+          )
+        }
+      })
+      .filter(Boolean)
+  }, [data, accessor])
+
+  const visiblePoints = points
+    .filter((item) => item.t <= playbackTime)
+    .map((item) => item.point)
+
+  if (visiblePoints.length < 2) {
+    return null
+  }
+
+  return (
+    <Line
+      points={visiblePoints}
+      color={color}
+      lineWidth={lineWidth}
+      transparent
+      opacity={opacity}
+    />
+  )
+}
+
+// ======================================================
 // SWEPT BLADE PLANE
 // ======================================================
 
@@ -546,6 +604,28 @@ function Scene({
           />
         )}
 
+      {data && (
+        <>
+          <HandTrajectory
+            data={data}
+            playbackTime={playbackTime}
+            accessor="root"
+            color="#6f747a"
+            opacity={0.5}
+            lineWidth={1.6}
+          />
+
+          <HandTrajectory
+            data={data}
+            playbackTime={playbackTime}
+            accessor="handL"
+            color="#9a9187"
+            opacity={0.32}
+            lineWidth={1.3}
+          />
+        </>
+      )}
+
       <OrbitControls
         ref={controlsRef}
         target={[0, 0, 0]}
@@ -633,6 +713,29 @@ function Legend({
           <span>6</span>
           <span>12 m/s</span>
         </div>
+        <div className="legendHandPaths">
+          <div className="legendHandRow">
+            <span
+              className="legendHandSwatch"
+              style={{
+                background: '#6f747a',
+                opacity: 0.5
+              }}
+            />
+            <span>Right hand</span>
+          </div>
+
+          <div className="legendHandRow">
+            <span
+              className="legendHandSwatch"
+              style={{
+                background: '#9a9187',
+                opacity: 0.32
+              }}
+            />
+            <span>Left hand</span>
+          </div>
+        </div>
       </div>
     )
   }
@@ -647,8 +750,31 @@ function Legend({
 
       <div className="legendTicks">
         <span>0°</span>
-        <span>5°</span>
-        <span>10°+</span>
+        <span>10°</span>
+        <span>20°+</span>
+      </div>
+      <div className="legendHandPaths">
+        <div className="legendHandRow">
+          <span
+            className="legendHandSwatch"
+            style={{
+              background: '#6f747a',
+              opacity: 0.5
+            }}
+          />
+          <span>Right hand</span>
+        </div>
+
+        <div className="legendHandRow">
+          <span
+            className="legendHandSwatch"
+            style={{
+              background: '#9a9187',
+              opacity: 0.32
+            }}
+          />
+          <span>Left hand</span>
+        </div>
       </div>
     </div>
   )
@@ -756,8 +882,9 @@ function StaticTrajectoryCover({
                 x2={next.x}
                 y2={next.y}
                 stroke={color}
-                strokeWidth="3.5"
+                strokeWidth={5.5}
                 strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
               />
             )
           })}
@@ -1071,8 +1198,8 @@ function App() {
 
             <button
               className={`toggle ${colorMode === 'edge'
-                  ? 'toggleRight'
-                  : ''
+                ? 'toggleRight'
+                : ''
                 }`}
               onClick={() =>
                 setColorMode(
@@ -1091,8 +1218,8 @@ function App() {
 
             <button
               className={`toggle ${displayMode === 'plane'
-                  ? 'toggleRight'
-                  : ''
+                ? 'toggleRight'
+                : ''
                 }`}
               onClick={() =>
                 setDisplayMode(
