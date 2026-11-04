@@ -784,6 +784,22 @@ function StaticTrajectoryCover({
   data,
   onActivate
 }) {
+  const softenColor = (
+    rgb,
+    amount = 0.18
+  ) => {
+    const background = [
+      0.949,
+      0.949,
+      0.937
+    ]
+
+    return rgb.map(
+      (value, i) =>
+        value * (1 - amount) +
+        background[i] * amount
+    )
+  }
   const preview = useMemo(() => {
     if (!data?.samples?.length) {
       return null
@@ -884,6 +900,59 @@ function StaticTrajectoryCover({
         viewBox={`0 0 ${preview.width} ${preview.height}`}
         preserveAspectRatio="xMidYMid meet"
       >
+        <defs>
+          {preview.projected
+            .slice(0, -1)
+            .map((point, i) => {
+              const next =
+                preview.projected[i + 1]
+
+              if (
+                !point.tip ||
+                !next.tip
+              ) {
+                return null
+              }
+
+              const [r1, g1, b1] =
+                softenColor(point.color, 0.3)
+
+              const [r2, g2, b2] =
+                softenColor(next.color, 0.3)
+
+              const color1 =
+                `rgb(${Math.round(r1 * 255)},` +
+                `${Math.round(g1 * 255)},` +
+                `${Math.round(b1 * 255)})`
+
+              const color2 =
+                `rgb(${Math.round(r2 * 255)},` +
+                `${Math.round(g2 * 255)},` +
+                `${Math.round(b2 * 255)})`
+
+              return (
+                <linearGradient
+                  key={`gradient-${i}`}
+                  id={`tip-gradient-${i}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={point.tip.x}
+                  y1={point.tip.y}
+                  x2={next.tip.x}
+                  y2={next.tip.y}
+                >
+                  <stop
+                    offset="0%"
+                    stopColor={color1}
+                  />
+
+                  <stop
+                    offset="100%"
+                    stopColor={color2}
+                  />
+                </linearGradient>
+              )
+            })}
+        </defs>
         {/* LEFT HAND */}
         {preview.projected
           .slice(0, -1)
@@ -958,14 +1027,6 @@ function StaticTrajectoryCover({
               return null
             }
 
-            const [r, g, b] =
-              point.color
-
-            const color =
-              `rgb(${Math.round(r * 255)},` +
-              `${Math.round(g * 255)},` +
-              `${Math.round(b * 255)})`
-
             return (
               <line
                 key={`tip-${i}`}
@@ -973,7 +1034,7 @@ function StaticTrajectoryCover({
                 y1={point.tip.y}
                 x2={next.tip.x}
                 y2={next.tip.y}
-                stroke={color}
+                stroke={`url(#tip-gradient-${i})`}
                 strokeWidth={5.5}
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
