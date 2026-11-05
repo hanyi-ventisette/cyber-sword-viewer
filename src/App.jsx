@@ -1051,6 +1051,42 @@ function StaticTrajectoryCover({
 }
 
 // ======================================================
+// MOTION / VIDEO CONFIG
+// ======================================================
+
+const MOTION_CONFIGS = {
+  right_fendente: {
+    data: '/data/test_motion_01.json',
+    video: '/data/01_right_fendente.MP4',
+    videoOffset: 0.7
+  },
+
+  left_midcut_thrust: {
+    data: '/data/test_motion_02.json',
+    video: '/data/02_left_midcut_thrust.MP4',
+    videoOffset: 1.0
+  },
+
+  parry_two_zwerch: {
+    data: '/data/test_motion_03.json',
+    video: '/data/03_parry_zwerch.MP4',
+    videoOffset: 1.4
+  },
+
+  scheitelhau_thrust: {
+    data: '/data/test_motion_04.json',
+    video: '/data/04_scheitelhau_thrust.MP4',
+    videoOffset: 1.4
+  },
+
+  left_fendente: {
+    data: '/data/test_motion_05.json',
+    video: '/data/05_left_fendente.MP4',
+    videoOffset: 0.7
+  }
+}
+
+// ======================================================
 // APP
 // ======================================================
 
@@ -1077,16 +1113,57 @@ function App() {
   const playbackTimeRef =
     useRef(0)
 
+  const videoRef =
+    useRef(null)
+
   const [
     viewerActivated,
     setViewerActivated
   ] = useState(false)
 
   const viewerIdRef = useRef(
-    `viewer-${Math.random().toString(36).slice(2)}`
+    `viewer-${Math.random()
+      .toString(36)
+      .slice(2)}`
   )
 
-  const channelRef = useRef(null)
+  const channelRef =
+    useRef(null)
+
+  const [
+    scaleInfo,
+    setScaleInfo
+  ] = useState({
+    label: '1 m',
+    width: 90
+  })
+
+  const controlsRef =
+    useRef()
+
+  // ------------------------------------------------------
+  // Choose motion from URL
+  // ------------------------------------------------------
+
+  const params =
+    new URLSearchParams(
+      window.location.search
+    )
+
+  const motionKey =
+    params.get('motion') ||
+    'right_fendente'
+
+  const motionConfig =
+    MOTION_CONFIGS[motionKey] ||
+    MOTION_CONFIGS.right_fendente
+
+  const videoOffset =
+    motionConfig.videoOffset || 0
+
+  // ------------------------------------------------------
+  // Only one active WebGL viewer at a time
+  // ------------------------------------------------------
 
   useEffect(() => {
     const channel =
@@ -1096,71 +1173,41 @@ function App() {
 
     channelRef.current = channel
 
-    channel.onmessage = (event) => {
-      const {
-        type,
-        viewerId
-      } = event.data || {}
+    channel.onmessage =
+      (event) => {
+        const {
+          type,
+          viewerId
+        } = event.data || {}
 
-      if (
-        type === 'ACTIVATE_VIEWER' &&
-        viewerId !== viewerIdRef.current
-      ) {
-        // Stop playback
-        setIsPlaying(false)
+        if (
+          type ===
+          'ACTIVATE_VIEWER' &&
+          viewerId !==
+          viewerIdRef.current
+        ) {
+          setIsPlaying(false)
 
-        // Close WebGL viewer
-        setViewerActivated(false)
+          if (videoRef.current) {
+            videoRef.current.pause()
+          }
+
+          setViewerActivated(false)
+        }
       }
-    }
 
     return () => {
       channel.close()
     }
   }, [])
 
-  const [scaleInfo, setScaleInfo] =
-    useState({
-      label: '1 m',
-      width: 90
-    })
-
-  const controlsRef = useRef()
-
-  const motionFiles = {
-    right_fendente:
-      '/data/test_motion_01.json',
-
-    left_midcut_thrust:
-      '/data/test_motion_04.json',
-
-    parry_two_zwerch:
-      '/data/test_motion_05.json',
-
-    scheitelhau_thrust:
-      '/data/test_motion_06.json',
-
-    left_fendente:
-      '/data/test_motion_07.json'
-  }
+  // ------------------------------------------------------
+  // Load JSON
+  // ------------------------------------------------------
 
   useEffect(() => {
-
-    const params =
-      new URLSearchParams(
-        window.location.search
-      )
-
-    const motion =
-      params.get('motion')
-      || 'right_fendente'
-
-    const dataUrl =
-      motionFiles[motion]
-      || motionFiles.right_fendente
-
-    fetch(dataUrl)
-      .then(response => {
+    fetch(motionConfig.data)
+      .then((response) => {
         if (!response.ok) {
           throw new Error(
             `HTTP ${response.status}`
@@ -1169,15 +1216,18 @@ function App() {
 
         return response.json()
       })
-      .then(json => {
+
+      .then((json) => {
         console.log(
           'Loaded motion:',
-          motion,
+          motionKey,
           json
         )
 
         setData(json)
 
+        // Keep your existing behavior:
+        // show the complete trajectory initially.
         playbackTimeRef.current =
           json.duration
 
@@ -1185,221 +1235,509 @@ function App() {
           json.duration
         )
       })
-      .catch(error => {
+
+      .catch((error) => {
         console.error(
           'Failed to load motion data:',
           error
         )
       })
+  }, [
+    motionConfig.data,
+    motionKey
+  ])
 
-  }, [])
+  // ------------------------------------------------------
+  // Video becomes master playback clock
+  // ------------------------------------------------------
 
   useEffect(() => {
-    if (!isPlaying || !data) {
+    if (
+      !isPlaying ||
+      !data ||
+      !videoRef.current
+    ) {
       return
     }
 
     let animationFrame
 
-    let previousTime =
-      performance.now()
+    const video =
+      videoRef.current
 
-    function animate(now) {
-      const delta =
-        (now - previousTime) / 1000
+    function syncFromVideo() {
+      const motionTime =
+        video.currentTime -
+        videoOffset
 
-      previousTime = now
-
-      const next =
-        Math.min(
-          playbackTimeRef.current + delta,
-          data.duration
+      const clampedTime =
+        Math.max(
+          0,
+          Math.min(
+            motionTime,
+            data.duration
+          )
         )
 
-      playbackTimeRef.current = next
-      setPlaybackTime(next)
+      playbackTimeRef.current =
+        clampedTime
 
-      if (next >= data.duration) {
+      setPlaybackTime(
+        clampedTime
+      )
+
+      if (
+        clampedTime >=
+        data.duration ||
+        video.ended
+      ) {
+        video.pause()
+
         setIsPlaying(false)
+
         return
       }
 
       animationFrame =
-        requestAnimationFrame(animate)
+        requestAnimationFrame(
+          syncFromVideo
+        )
     }
 
     animationFrame =
-      requestAnimationFrame(animate)
+      requestAnimationFrame(
+        syncFromVideo
+      )
 
     return () => {
-      cancelAnimationFrame(animationFrame)
+      cancelAnimationFrame(
+        animationFrame
+      )
     }
-  }, [isPlaying, data])
+  }, [
+    isPlaying,
+    data,
+    videoOffset
+  ])
+
+  // ------------------------------------------------------
+  // Camera reset
+  // ------------------------------------------------------
 
   function resetView() {
-    if (!controlsRef.current) return
+    if (!controlsRef.current) {
+      return
+    }
 
     controlsRef.current.reset()
   }
 
-  function playMotion() {
+  // ------------------------------------------------------
+  // Shared seek
+  // ------------------------------------------------------
+
+  function seekMotion(value) {
     if (!data) return
 
+    const clamped =
+      Math.max(
+        0,
+        Math.min(
+          value,
+          data.duration
+        )
+      )
+
+    setIsPlaying(false)
+
+    playbackTimeRef.current =
+      clamped
+
+    setPlaybackTime(
+      clamped
+    )
+
+    if (videoRef.current) {
+      videoRef.current.pause()
+
+      videoRef.current.currentTime =
+        clamped +
+        videoOffset
+
+      console.log(
+        'motion:',
+        clamped,
+        'video:',
+        videoRef.current.currentTime
+      )
+    }
+  }
+
+  // ------------------------------------------------------
+  // Play synchronized motion + video
+  // ------------------------------------------------------
+
+  function playMotion() {
     if (
-      playbackTimeRef.current >=
+      !data ||
+      !videoRef.current
+    ) {
+      return
+    }
+
+    const video =
+      videoRef.current
+
+    let startTime =
+      playbackTimeRef.current
+
+    // Replay from start if we're already at the end
+    if (
+      startTime >=
       data.duration - 0.001
     ) {
-      playbackTimeRef.current = 0
+      startTime = 0
+
+      playbackTimeRef.current =
+        0
+
       setPlaybackTime(0)
     }
 
-    setIsPlaying(true)
+    video.currentTime =
+      startTime +
+      videoOffset
+
+    video
+      .play()
+      .then(() => {
+        setIsPlaying(true)
+      })
+      .catch((error) => {
+        console.error(
+          'Video playback failed:',
+          error
+        )
+      })
   }
+
+  // ------------------------------------------------------
+  // Activate viewer
+  // ------------------------------------------------------
 
   function activateViewer() {
     setViewerActivated(true)
 
-    channelRef.current?.postMessage({
-      type: 'ACTIVATE_VIEWER',
-      viewerId: viewerIdRef.current
+    channelRef.current
+      ?.postMessage({
+        type:
+          'ACTIVATE_VIEWER',
+
+        viewerId:
+          viewerIdRef.current
+      })
+
+    // Put video at matching frame
+    requestAnimationFrame(() => {
+      if (videoRef.current) {
+        videoRef.current.currentTime =
+          playbackTimeRef.current +
+          videoOffset
+      }
     })
   }
 
   return (
     <div className="app">
-      <div className="viewer">
-        {viewerActivated ? (
-          <Canvas
-            camera={{
-              position: [2.4, 1.6, 3.2],
-              fov: 40
-            }}
-          >
-            <Scene
+
+      <div className="motionExperience">
+
+        {/* ============================================= */}
+        {/* 3D / STATIC TRAJECTORY PANE */}
+        {/* ============================================= */}
+
+        <div className="viewerPane">
+
+          <div className="viewer">
+
+            {viewerActivated ? (
+
+              <Canvas
+                camera={{
+                  position: [
+                    2.4,
+                    1.6,
+                    3.2
+                  ],
+
+                  fov: 40
+                }}
+              >
+                <Scene
+                  data={data}
+                  colorMode={
+                    colorMode
+                  }
+                  displayMode={
+                    displayMode
+                  }
+                  controlsRef={
+                    controlsRef
+                  }
+                  playbackTime={
+                    playbackTime
+                  }
+                  onScaleChange={
+                    setScaleInfo
+                  }
+                />
+              </Canvas>
+
+            ) : (
+
+              <StaticTrajectoryCover
+                data={data}
+                onActivate={
+                  activateViewer
+                }
+              />
+
+            )}
+
+            <Legend
               data={data}
-              colorMode={colorMode}
-              displayMode={displayMode}
-              controlsRef={controlsRef}
-              playbackTime={playbackTime}
-              onScaleChange={setScaleInfo}
+              colorMode={
+                colorMode
+              }
             />
-          </Canvas>
-        ) : (
-          <StaticTrajectoryCover
-            data={data}
-            onActivate={activateViewer}
-          />
-        )}
 
-        <Legend
-          data={data}
-          colorMode={colorMode}
-        />
+            <div className="scaleBar">
 
-        <div className="scaleBar">
+              <span
+                className="scaleLabel"
+              >
+                {scaleInfo.label}
+              </span>
 
-          <span className="scaleLabel">
-            {scaleInfo.label}
-          </span>
+              <div
+                className="scaleLine"
+                style={{
+                  width:
+                    `${scaleInfo.width}px`
+                }}
+              >
+                <span />
+                <span />
+              </div>
 
-          <div
-            className="scaleLine"
-            style={{
-              width: `${scaleInfo.width}px`
-            }}
-          >
-            <span />
-            <span />
+            </div>
+
+            {data &&
+              viewerActivated && (
+
+                <div
+                  className=
+                  "playbackSlider"
+                >
+                  <input
+                    type="range"
+                    min="0"
+                    max={
+                      data.duration
+                    }
+                    step="0.001"
+                    value={
+                      playbackTime
+                    }
+
+                    onChange={
+                      (event) =>
+                        seekMotion(
+                          Number(
+                            event
+                              .target
+                              .value
+                          )
+                        )
+                    }
+
+                    aria-label=
+                    "Motion playback position"
+                  />
+                </div>
+
+              )}
+
+            {viewerActivated && (
+
+              <div
+                className="controls"
+              >
+
+                <button
+                  className=
+                  "iconButton"
+                  onClick={
+                    playMotion
+                  }
+                  title=
+                  "Replay motion"
+                  aria-label=
+                  "Replay motion"
+                >
+                  <PlayIcon />
+                </button>
+
+                <button
+                  className={`toggle ${colorMode ===
+                    'edge'
+                    ? 'toggleRight'
+                    : ''
+                    }`}
+
+                  onClick={() =>
+                    setColorMode(
+                      (prev) =>
+                        prev ===
+                          'speed'
+                          ? 'edge'
+                          : 'speed'
+                    )
+                  }
+
+                  aria-label=
+                  "Switch between speed and edge alignment coloring"
+                >
+                  <span>
+                    Speed
+                  </span>
+
+                  <span>
+                    Edge
+                  </span>
+
+                  <div
+                    className=
+                    "toggleThumb"
+                  />
+                </button>
+
+                <button
+                  className={`toggle ${displayMode ===
+                    'plane'
+                    ? 'toggleRight'
+                    : ''
+                    }`}
+
+                  onClick={() =>
+                    setDisplayMode(
+                      (prev) =>
+                        prev ===
+                          'path'
+                          ? 'plane'
+                          : 'path'
+                    )
+                  }
+
+                  aria-label=
+                  "Switch between path and blade plane"
+                >
+                  <span>
+                    Path
+                  </span>
+
+                  <span>
+                    Plane
+                  </span>
+
+                  <div
+                    className=
+                    "toggleThumb"
+                  />
+                </button>
+
+                <button
+                  className=
+                  "iconButton"
+                  onClick={
+                    resetView
+                  }
+                  title=
+                  "Reset view"
+                  aria-label=
+                  "Reset view"
+                >
+                  <ResetIcon />
+                </button>
+
+              </div>
+
+            )}
+
           </div>
 
         </div>
-        {data && viewerActivated && (
-          <div className="playbackSlider">
-            <input
-              type="range"
-              min="0"
-              max={data.duration}
-              step="0.001"
-              value={playbackTime}
-              onChange={(event) => {
-                const value =
-                  Number(
-                    event.target.value
+
+        {/* ============================================= */}
+        {/* VIDEO PANE */}
+        {/* ============================================= */}
+
+        <div
+          className={`videoPane ${viewerActivated
+            ? 'videoPaneActive'
+            : 'videoPaneStatic'
+            }`}
+        >
+          <video
+            ref={videoRef}
+
+            src={
+              motionConfig.video
+            }
+
+            className=
+            "motionVideo"
+
+            muted
+            playsInline
+            preload="metadata"
+
+            onLoadedMetadata={() => {
+              if (!videoRef.current) {
+                return
+              }
+
+              console.log(
+                'VIDEO DURATION:',
+                videoRef.current.duration
+              )
+
+              console.log(
+                'DATA DURATION:',
+                data?.duration
+              )
+
+              const requested =
+                playbackTimeRef.current +
+                videoOffset
+
+              const safeTime =
+                Math.min(
+                  requested,
+                  Math.max(
+                    0,
+                    videoRef.current.duration - 0.01
                   )
-
-                setIsPlaying(false)
-
-                playbackTimeRef.current =
-                  value
-
-                setPlaybackTime(value)
-              }}
-              aria-label="Motion playback position"
-            />
-          </div>
-        )}
-        {viewerActivated && (
-          <div className="controls">
-            <button
-              className="iconButton"
-              onClick={playMotion}
-              title="Replay motion"
-              aria-label="Replay motion"
-            >
-              <PlayIcon />
-            </button>
-
-            <button
-              className={`toggle ${colorMode === 'edge'
-                ? 'toggleRight'
-                : ''
-                }`}
-              onClick={() =>
-                setColorMode(
-                  (prev) =>
-                    prev === 'speed'
-                      ? 'edge'
-                      : 'speed'
                 )
-              }
-              aria-label="Switch between speed and edge alignment coloring"
-            >
-              <span>Speed</span>
-              <span>Edge</span>
-              <div className="toggleThumb" />
-            </button>
 
-            <button
-              className={`toggle ${displayMode === 'plane'
-                ? 'toggleRight'
-                : ''
-                }`}
-              onClick={() =>
-                setDisplayMode(
-                  (prev) =>
-                    prev === 'path'
-                      ? 'plane'
-                      : 'path'
-                )
-              }
-              aria-label="Switch between path and blade plane"
-            >
-              <span>Path</span>
-              <span>Plane</span>
-              <div className="toggleThumb" />
-            </button>
+              videoRef.current.currentTime =
+                safeTime
+            }}
+          />
+        </div>
 
-            <button
-              className="iconButton"
-              onClick={resetView}
-              title="Reset view"
-              aria-label="Reset view"
-            >
-              <ResetIcon />
-            </button>
-          </div>
-        )}
       </div>
+
     </div>
   )
 }
