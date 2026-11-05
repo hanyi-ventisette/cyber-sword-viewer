@@ -492,8 +492,7 @@ body {
   display: grid;
 
   grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, 1fr);
+    minmax(0, 1fr) minmax(0, 1fr);
 
   gap: 8px;
 
@@ -515,9 +514,36 @@ body {
   background: #f2f2ef;
 }
 
-.viewerPane .viewer {
-  width: 100%;
-  height: 100%;
+
+/* =========================================
+   STACKED / NARROW
+   ========================================= */
+
+@media (max-width: 760px) {
+  .motionExperience {
+    grid-template-columns: 1fr;
+
+    /* important: equal-height panes */
+    grid-template-rows:
+      minmax(0, 1fr) minmax(0, 1fr);
+
+    gap: 8px;
+  }
+
+  .viewerPane,
+  .videoPane {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .viewerPane .viewer {
+    height: 100%;
+  }
+
+  .motionVideo {
+    height: 100%;
+    object-fit: contain;
+  }
 }
 
 
@@ -545,10 +571,7 @@ body {
 
 .videoPaneStatic .motionVideo {
   filter:
-    grayscale(1)
-    saturate(0)
-    contrast(0.72)
-    brightness(1.08);
+    grayscale(1) saturate(0) contrast(0.72) brightness(1.08);
 
   opacity: 0.52;
 }
@@ -576,8 +599,7 @@ body {
     grid-template-columns: 1fr;
 
     grid-template-rows:
-      minmax(0, 1fr)
-      minmax(0, 1fr);
+      minmax(0, 1fr) minmax(0, 1fr);
 
     gap: 8px;
   }
