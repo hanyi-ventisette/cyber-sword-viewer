@@ -567,6 +567,7 @@ function ScaleTracker({ onScaleChange }) {
 // SCENE
 // ======================================================
 
+
 function Scene({
   data,
   colorMode,
@@ -633,6 +634,15 @@ function Scene({
 
       <ScaleTracker
         onScaleChange={onScaleChange}
+      />
+      <gridHelper
+        args={[
+          3.2,
+          4,
+          '#cdcdc7', // center line: slightly darker
+          '#d9d9d2'  // grid lines: just a bit darker
+        ]}
+        position={[0, -1.15, 0]}
       />
     </>
   )
