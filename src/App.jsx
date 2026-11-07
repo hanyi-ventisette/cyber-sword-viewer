@@ -1065,33 +1065,57 @@ function StaticTrajectoryCover({
 // ======================================================
 
 const MOTION_CONFIGS = {
-  right_fendente: {
-    data: '/data/test_motion_01.json',
-    video: '/data/01_right_fendente.MP4',
+  p1_right_fendente: {
+    data: '/data/p1_01_right_fendente.json',
+    video: '/data/p1_01_right_fendente.mp4',
     videoOffset: 0.7
   },
 
-  left_midcut_thrust: {
-    data: '/data/test_motion_02.json',
-    video: '/data/02_left_midcut_thrust.MP4',
+  p1_left_midcut_thrust: {
+    data: '/data/p1_02_left_midcut_thrust.json',
+    video: '/data/p1_02_left_midcut_thrust.mp4',
     videoOffset: 1.0
   },
 
-  parry_two_zwerch: {
-    data: '/data/test_motion_03.json',
-    video: '/data/03_parry_zwerch.MP4',
+  p1_parry_zwerch: {
+    data: '/data/p1_03_parry_zwerch.json',
+    video: '/data/p1_03_parry_zwerch.mp4',
     videoOffset: 1.4
   },
 
-  scheitelhau_thrust: {
-    data: '/data/test_motion_04.json',
-    video: '/data/04_scheitelhau_thrust.MP4',
+  p1_scheitelhau_thrust: {
+    data: '/data/p1_04_scheitelhau_thrust.json',
+    video: '/data/p1_04_scheitelhau_thrust.mp4',
     videoOffset: 1.4
   },
 
-  left_fendente: {
-    data: '/data/test_motion_05.json',
-    video: '/data/05_left_fendente.MP4',
+  p1_left_fendente: {
+    data: '/data/p1_05_left_fendente.json',
+    video: '/data/p1_05_left_fendente.mp4',
+    videoOffset: 0.7
+  },
+
+  p2_kieran_trueedge: {
+    data: '/data/p2_01_kieran_handsnipe_vertical_trueedge.json',
+    video: '/data/p2_01_kieran_handsnipe_vertical_trueedge.mp4',
+    videoOffset: 0.6
+  },
+
+  p2_hanyi_trueedge: {
+    data: '/data/p2_02_hanyi_handsnipe_vertical_trueedge.json',
+    video: '/data/p2_02_hanyi_handsnipe_vertical_trueedge.mp4',
+    videoOffset: 0.3
+  },
+
+  p2_kieran_horizontal: {
+    data: '/data/p2_03_kieran_handsnipe_horizontal.json',
+    video: '/data/p2_03_kieran_handsnipe_horizontal.mp4',
+    videoOffset: 0.0
+  },
+
+  p2_hanyi_horizontal: {
+    data: '/data/p2_04_hanyi_handsnipe_horizontal.json',
+    video: '/data/p2_04_hanyi_handsnipe_horizontal.mp4',
     videoOffset: 0.7
   }
 }
@@ -1162,11 +1186,13 @@ function App() {
 
   const motionKey =
     params.get('motion') ||
-    'right_fendente'
+    'p1_right_fendente'
 
   const motionConfig =
     MOTION_CONFIGS[motionKey] ||
-    MOTION_CONFIGS.right_fendente
+    MOTION_CONFIGS.p1_right_fendente
+  console.log('motionKey:', motionKey)
+  console.log('motionConfig:', motionConfig)
 
   const videoOffset =
     motionConfig.videoOffset || 0
